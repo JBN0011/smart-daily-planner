@@ -73,14 +73,19 @@ def _fallback(raw):
         items.append({"task": p, "priority": pr, "minutes": mins, "fixed_time": ft})
     return _clean(items)
 
+def _get_key():
+    key = os.getenv("GEMINI_API_KEY")
+    if key:
+        return key
+    try:
+        import streamlit as st
+        return st.secrets.get("GEMINI_API_KEY")
+    except Exception:
+        return None
 
 def analyze_tasks(raw_text):
     """Return (tasks, source) where source is 'gemini' or 'offline'."""
-    try:
-    import streamlit as st
-    key = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY")
-except Exception:
-    key = os.getenv("GEMINI_API_KEY")
+    key = _get_key()
     if not key or key == "your_key_here":
         return _fallback(raw_text), "offline"
     try:
