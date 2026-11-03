@@ -73,6 +73,10 @@ def _fallback(raw):
         items.append({"task": p, "priority": pr, "minutes": mins, "fixed_time": ft})
     return _clean(items)
 
+
+SKIP_WORDS = ("lite", "image", "tts", "live", "audio", "embedding", "robotics", "exp")
+
+
 def _get_key():
     key = os.getenv("GEMINI_API_KEY")
     if key:
@@ -83,22 +87,48 @@ def _get_key():
     except Exception:
         return None
 
+
+def _candidate_models(client):
+    """First the model you chose, then every Flash model your key can see."""
+    first = os.getenv("GEMINI_MODEL") or "gemini-flash-latest"
+    yield first
+    try:
+        for m in client.models.list():
+            name = m.name.replace("models/", "")
+            if "flash" in name and name != first and not any(w in name for w in SKIP_WORDS):
+                yield name
+    except Exception:
+        return
+
+
 def analyze_tasks(raw_text):
-    """Return (tasks, source). source is 'gemini' or 'offline: <reason>'."""
+    """Return (tasks, source). source is 'gemini: <model>' or 'offline: <reason>'."""
     key = _get_key()
     if not key or key == "your_key_here":
         return _fallback(raw_text), "offline: no API key found"
+    last_error = "unknown error"
     try:
         from google import genai
         client = genai.Client(api_key=key)
-        resp = client.models.generate_content(
-            model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
-            contents=PROMPT + raw_text,
-            config={"response_mime_type": "application/json"},
-        )
-        tasks = _clean(json.loads(resp.text))
-        if tasks:
-            return tasks, "gemini"
-        return _fallback(raw_text), "offline: Gemini returned no tasks"
     except Exception as e:
-        return _fallback(raw_text), f"offline: Gemini error - {type(e).__name__}: {str(e)[:150]}"
+        return _fallback(raw_text), f"offline: cannot start Gemini - {type(e).__name__}: {str(e)[:120]}"
+    tried = 0
+    for model_name in _candidate_models(client):
+        tried += 1
+        if tried > 4:
+            break
+        try:
+            resp = client.models.generate_content(
+                model=model_name,
+                contents=PROMPT + raw_text,
+                config={"response_mime_type": "application/json"},
+            )
+            tasks = _clean(json.loads(resp.text))
+            if tasks:
+                return tasks, f"gemini: {model_name}"
+            last_error = f"{model_name} returned no tasks"
+        except Exception as e:
+            last_error = f"{model_name} - {type(e).__name__}: {str(e)[:120]}"
+            if "429" in last_error or "API key" in last_error:
+                break  # another model will not fix a quota or key problem
+    return _fallback(raw_text), f"offline: Gemini error - {last_error}"
