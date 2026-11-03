@@ -42,7 +42,7 @@ with tab_plan:
 
     if "result" in st.session_state:
         sched, not_fit, source = st.session_state["result"]
-                label = "Gemini AI" if source == "gemini" else source
+        label = "Gemini AI" if source == "gemini" else source
         st.info("Understood with: " + label)
         c1, c2 = st.columns(2)
         c1.metric("Scheduled", sum(r["Type"] != "Break" for r in sched))
