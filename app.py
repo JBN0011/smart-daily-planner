@@ -42,8 +42,8 @@ with tab_plan:
 
     if "result" in st.session_state:
         sched, not_fit, source = st.session_state["result"]
-        st.info("Understood with: " + ("Gemini AI" if source == "gemini"
-                else "offline rules (add a GEMINI_API_KEY for AI mode)"))
+                label = "Gemini AI" if source == "gemini" else source
+        st.info("Understood with: " + label)
         c1, c2 = st.columns(2)
         c1.metric("Scheduled", sum(r["Type"] != "Break" for r in sched))
         c2.metric("Did not fit", len(not_fit))
