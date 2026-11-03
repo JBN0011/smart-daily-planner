@@ -84,10 +84,10 @@ def _get_key():
         return None
 
 def analyze_tasks(raw_text):
-    """Return (tasks, source) where source is 'gemini' or 'offline'."""
+    """Return (tasks, source). source is 'gemini' or 'offline: <reason>'."""
     key = _get_key()
     if not key or key == "your_key_here":
-        return _fallback(raw_text), "offline"
+        return _fallback(raw_text), "offline: no API key found"
     try:
         from google import genai
         client = genai.Client(api_key=key)
@@ -99,6 +99,6 @@ def analyze_tasks(raw_text):
         tasks = _clean(json.loads(resp.text))
         if tasks:
             return tasks, "gemini"
-    except Exception:
-        pass  # network, quota or bad JSON: fall back instead of crashing
-    return _fallback(raw_text), "offline"
+        return _fallback(raw_text), "offline: Gemini returned no tasks"
+    except Exception as e:
+        return _fallback(raw_text), f"offline: Gemini error - {type(e).__name__}: {str(e)[:150]}"
